@@ -6,6 +6,9 @@ import { matchSorter } from "match-sorter";
 // @ts-ignore - no types, but it's a tiny function
 import sortBy from "sort-by";
 import invariant from "tiny-invariant";
+import { createApiClient } from "./authApi.server";
+
+const authApi = createApiClient("http://localhost:5167");
 
 type ContactMutation = {
   id?: string;
@@ -62,15 +65,14 @@ const fakeContacts = {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Handful of helper functions to be called from route loaders and actions
-export async function getContacts(query?: string | null) {
+export async function getContacts(query: string | null, token: string) {
   await new Promise((resolve) => setTimeout(resolve, 500));
-  let contacts = await fakeContacts.getAll();
-  if (query) {
-    contacts = matchSorter(contacts, query, {
-      keys: ["first", "last"],
-    });
-  }
-  return contacts.sort(sortBy("last", "createdAt"));
+  let findRes = await authApi.get("/api/Contact/Find", {
+    headers: {
+      Authorization: "Bearer " + token,
+    },
+  });
+  return findRes.contacts;
 }
 
 export async function createEmptyContact() {

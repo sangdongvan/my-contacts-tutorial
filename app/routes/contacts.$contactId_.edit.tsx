@@ -3,7 +3,7 @@ import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useNavigate } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
-import { getContact, updateContact } from "../data";
+import { getContact, updateContact } from "../data.server";
 
 export const action = async ({ params, request }: ActionArgs) => {
   invariant(params.contactId, "Missing contactId param");
@@ -31,17 +31,17 @@ export default function EditContact() {
       <p>
         <span>Name</span>
         <input
-          defaultValue={contact.first}
+          defaultValue={contact.firstName}
           aria-label="First name"
-          name="first"
+          name="firstName"
           type="text"
-          placeholder="First"
+          placeholder="First name"
         />
         <input
           aria-label="Last name"
-          defaultValue={contact.last}
-          name="last"
-          placeholder="Last"
+          defaultValue={contact.lastName}
+          name="lastName"
+          placeholder="Last name"
           type="text"
         />
       </p>

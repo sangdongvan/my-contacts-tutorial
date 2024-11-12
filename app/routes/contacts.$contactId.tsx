@@ -3,8 +3,8 @@ import { json } from "@remix-run/node";
 import { Form, useFetcher, useLoaderData } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
-import type { ContactRecord } from "../data";
-import { getContact, updateContact } from "../data";
+import type { ContactRecord } from "../data.server";
+import { getContact, updateContact } from "../data.server";
 
 export const action = async ({ params, request }: ActionArgs) => {
   invariant(params.contactId, "Missing contactId param");
@@ -30,7 +30,7 @@ export default function Contact() {
     <div id="contact">
       <div>
         <img
-          alt={`${contact.first} ${contact.last} avatar`}
+          alt={`${contact.firstName} ${contact.lastName} avatar`}
           key={contact.avatar}
           src={contact.avatar}
         />
@@ -38,9 +38,9 @@ export default function Contact() {
 
       <div>
         <h1>
-          {contact.first || contact.last ? (
+          {contact.firstName || contact.lastName ? (
             <>
-              {contact.first} {contact.last}
+              {contact.firstName} {contact.lastName}
             </>
           ) : (
             <i>No Name</i>
