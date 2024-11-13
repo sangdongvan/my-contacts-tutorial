@@ -4,8 +4,8 @@ import { Form, useLoaderData } from "@remix-run/react";
 import {
   authenticateWithJwt,
   authenticateWithUserCredentials,
-} from "~/authentication.server";
-import { accessTokenCookie, refreshTokenCookie } from "~/cookies.server";
+} from "~/auth/auth.server";
+import { accessTokenCookie, refreshTokenCookie } from "~/auth/cookies.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { accessToken, refreshToken } = await authenticateWithUserCredentials(
@@ -23,7 +23,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     await authenticateWithJwt(request);
   } catch (_) {
-    return json({ error: null });
+    return json(
+      { error: null },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=300",
+        },
+      }
+    );
   }
   return redirect("/contacts");
 };

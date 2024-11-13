@@ -1,4 +1,5 @@
-import { ActionArgs, json, LoaderArgs, redirect } from "@remix-run/node";
+import type { ActionArgs, LoaderArgs } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import {
   Form,
   NavLink,
@@ -9,18 +10,21 @@ import {
 } from "@remix-run/react";
 import { useEffect } from "react";
 
-import { createEmptyContact, getContacts } from "../data.server";
-import { accessTokenCookie, refreshTokenCookie } from "~/cookies.server";
-import { authenticateWithJwt } from "~/authentication.server";
+import { createEmptyContact, getContacts } from "../api/contact-api";
+import { accessTokenCookie, refreshTokenCookie } from "~/auth/cookies.server";
+import { authenticateOrGoLogin } from "~/auth/auth.server";
 
 export const action = async ({ request }: ActionArgs) => {
   const formData = await request.formData();
   const intent = formData.get("intent");
 
   if (intent === "NEW_CONTACT") {
-    const contact = await createEmptyContact();
+    const { accessToken } = await authenticateOrGoLogin(request);
+    const contact = await createEmptyContact(accessToken);
     return redirect(`${contact.id}/edit`);
-  } else if (intent === "LOGOUT") {
+  }
+
+  if (intent === "LOGOUT") {
     return redirect("/", {
       headers: [
         [
@@ -39,17 +43,17 @@ export const action = async ({ request }: ActionArgs) => {
         ],
       ],
     });
-  } else {
-    throw new Error("Wrong intent");
   }
+
+  throw new Error("Wrong intent");
 };
 
 export const loader = async ({ request }: LoaderArgs) => {
+  const { accessToken } = await authenticateOrGoLogin(request);
   const url = new URL(request.url);
   const q = url.searchParams.get("q");
-  const { accessToken } = await authenticateWithJwt(request);
   const contacts = await getContacts(q, accessToken);
-  return json({ contacts, q });
+  return { contacts, q };
 };
 
 export default function App() {

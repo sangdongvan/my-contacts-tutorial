@@ -1,29 +1,43 @@
-import type { ActionArgs, LoaderArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import type { ActionFunctionArgs } from "@remix-run/node";
+import { redirect } from "@remix-run/node";
+import type { ClientLoaderFunctionArgs } from "@remix-run/react";
 import { Form, useLoaderData, useNavigate } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
-import { getContact, updateContact } from "../data.server";
+import { getContact, updateContact } from "../api/contact-api";
+import { getAccessToken } from "~/auth/token.client";
+import { authenticateOrError } from "~/auth/auth.server";
+import { schemas } from "~/api/app-api.gen";
 
-export const action = async ({ params, request }: ActionArgs) => {
-  invariant(params.contactId, "Missing contactId param");
-  const formData = await request.formData();
-  const updates = Object.fromEntries(formData);
-  await updateContact(params.contactId, updates);
-  return redirect(`/contacts/${params.contactId}`);
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { accessToken: token, error } = await authenticateOrError(request);
+  if (error) {
+    return Response.json({}, { status: 401 });
+  }
+
+  // TODO: Handle validation error
+  const formPayload = Object.fromEntries(await request.formData());
+  const updateOneRequest = await schemas.UpdateOneContactRequest.parseAsync(
+    formPayload
+  );
+
+  await updateContact(updateOneRequest, token);
+
+  return redirect(`/contacts/${updateOneRequest.id}`);
 };
 
-export const loader = async ({ params }: LoaderArgs) => {
-  invariant(params.contactId, "Missing contactId param");
-  const contact = await getContact(params.contactId);
+export const clientLoader = async ({ params }: ClientLoaderFunctionArgs) => {
+  invariant(params.id, "Missing id param");
+  const token = await getAccessToken();
+  const contact = await getContact(params.id, token);
   if (!contact) {
     throw new Response("Not Found", { status: 404 });
   }
-  return json({ contact });
+  return { contact };
 };
 
 export default function EditContact() {
-  const { contact } = useLoaderData<typeof loader>();
+  const { contact } = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
 
   return (
@@ -45,6 +59,7 @@ export default function EditContact() {
           type="text"
         />
       </p>
+      <input type="hidden" name="id" value={contact.id} />
       <label>
         <span>Twitter</span>
         <input

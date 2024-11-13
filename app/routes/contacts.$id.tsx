@@ -1,30 +1,36 @@
-import type { ActionArgs, LoaderArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import type { ActionFunctionArgs } from "@remix-run/node";
+import type { ClientLoaderFunctionArgs } from "@remix-run/react";
 import { Form, useFetcher, useLoaderData } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
-import type { ContactRecord } from "../data.server";
-import { getContact, updateContact } from "../data.server";
+import { getContact, markAsFavoriteContact } from "../api/contact-api";
+import { getAccessToken } from "~/auth/token.client";
+import { authenticateOrGoLogin } from "~/auth/auth.server";
 
-export const action = async ({ params, request }: ActionArgs) => {
-  invariant(params.contactId, "Missing contactId param");
+export const action = async ({ params, request }: ActionFunctionArgs) => {
+  invariant(params.id, "Missing id param");
+  const { accessToken } = await authenticateOrGoLogin(request);
   const formData = await request.formData();
-  return updateContact(params.contactId, {
-    favorite: formData.get("favorite") === "true",
-  });
+  await markAsFavoriteContact(
+    params.id,
+    formData.get("favorite") === "true",
+    accessToken
+  );
+  return {};
 };
 
-export const loader = async ({ params }: LoaderArgs) => {
-  invariant(params.contactId, "Missing contactId param");
-  const contact = await getContact(params.contactId);
+export const clientLoader = async ({ params }: ClientLoaderFunctionArgs) => {
+  invariant(params.id, "Missing id param");
+  const token = await getAccessToken();
+  const contact = await getContact(params.id, token);
   if (!contact) {
     throw new Response("Not Found", { status: 404 });
   }
-  return json({ contact });
+  return { contact };
 };
 
 export default function Contact() {
-  const { contact } = useLoaderData<typeof loader>();
+  const { contact } = useLoaderData<typeof clientLoader>();
 
   return (
     <div id="contact">
@@ -45,7 +51,7 @@ export default function Contact() {
           ) : (
             <i>No Name</i>
           )}{" "}
-          <Favorite contact={contact} />
+          <Favorite favorite={contact.favorite} />
         </h1>
 
         {contact.twitter ? (
@@ -68,7 +74,7 @@ export default function Contact() {
             method="post"
             onSubmit={(event) => {
               const response = confirm(
-                "Please confirm you want to delete this record.",
+                "Please confirm you want to delete this record."
               );
               if (!response) {
                 event.preventDefault();
@@ -83,20 +89,22 @@ export default function Contact() {
   );
 }
 
-function Favorite({ contact }: { contact: Pick<ContactRecord, "favorite"> }) {
+function Favorite({ favorite }: { favorite: boolean }) {
   const fetcher = useFetcher();
-  const favorite = fetcher.formData
+  const effectiveFavorite = fetcher.formData
     ? fetcher.formData.get("favorite") === "true"
-    : contact.favorite;
+    : favorite;
 
   return (
     <fetcher.Form method="post">
       <button
-        aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
+        aria-label={
+          effectiveFavorite ? "Remove from favorites" : "Add to favorites"
+        }
         name="favorite"
-        value={favorite ? "false" : "true"}
+        value={effectiveFavorite ? "false" : "true"}
       >
-        {favorite ? "★" : "☆"}
+        {effectiveFavorite ? "★" : "☆"}
       </button>
     </fetcher.Form>
   );

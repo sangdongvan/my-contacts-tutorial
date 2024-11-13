@@ -1,9 +1,10 @@
 import invariant from "tiny-invariant";
-import { AuthorizationError } from "remix-auth";
-import jwt, { JwtHeader, JwtPayload, SigningKeyCallback } from "jsonwebtoken";
-import { createApiClient } from "./authApi.server";
+import type { JwtHeader, JwtPayload, SigningKeyCallback } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
+import { createApiClient } from "../api/app-api.gen";
 import JwksRsa from "jwks-rsa";
 import { accessTokenCookie, refreshTokenCookie } from "./cookies.server";
+import { redirect } from "@remix-run/node";
 
 const authApi = createApiClient("http://localhost:5167");
 
@@ -32,7 +33,7 @@ export async function authenticateWithUserCredentials(
       password: password,
     });
   } catch (_) {
-    throw new AuthorizationError("Invalid credentials");
+    throw new Error("Invalid credentials");
   }
 
   invariant(typeof res.accessToken === "string", "accessToken must be string");
@@ -45,6 +46,29 @@ export async function authenticateWithUserCredentials(
     accessToken: res.accessToken as string,
     refreshToken: res.refreshToken as string,
   };
+}
+
+export async function authenticateOrGoLogin(
+  request: Request
+): Promise<TokenResponse> {
+  try {
+    return await authenticateWithJwt(request);
+  } catch (_) {
+    throw redirect("/login");
+  }
+}
+export async function authenticateOrError(
+  request: Request
+): Promise<TokenResponse & { error?: string }> {
+  try {
+    return await authenticateWithJwt(request);
+  } catch (_) {
+    return {
+      accessToken: "",
+      refreshToken: "",
+      error: "TODO",
+    };
+  }
 }
 
 export async function authenticateWithJwt(
@@ -92,40 +116,20 @@ export async function authenticateWithJwt(
 
   try {
     await verifying;
-
-    // TODO renew the expired token if refresh token is available.
-    if (
-      unverifiedJwtPayload.exp == null ||
-      unverifiedJwtPayload.exp < Date.now() / 1000
-    ) {
-      unauthorized(3);
-    }
-
-    return {
-      accessToken: token,
-      refreshToken: await refreshTokenCookie.parse(cookieHeader),
-    };
   } catch (exception: any) {
-    console.log(exception.message);
     unauthorized(4);
   }
-  unauthorized(5);
+
+  // TODO renew the expired token if refresh token is available.
+  if (
+    unverifiedJwtPayload.exp == null ||
+    unverifiedJwtPayload.exp < Date.now() / 1000
+  ) {
+    unauthorized(3);
+  }
+
+  return {
+    accessToken: token,
+    refreshToken: await refreshTokenCookie.parse(cookieHeader),
+  };
 }
-
-// export async function authenticatedUser(request: Request): Promise<any> {
-//   try {
-//     let auth = await authenticate(request);
-//     return auth?.user;
-//   } catch (e) {
-//     return false;
-//   }
-// }
-
-// export async function isAuthenticated(request: Request): Promise<boolean> {
-//   try {
-//     await authenticate(request);
-//     return true;
-//   } catch (e) {
-//     return false;
-//   }
-// }
